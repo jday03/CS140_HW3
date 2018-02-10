@@ -97,6 +97,7 @@ void gennbody(double** s, double** v, double* m, int n){
 	double dist;
 	double thetaMax = 2 * M_PI;
 	double theta;
+	double zMax = 10 ^11;
 
 
 
@@ -106,7 +107,7 @@ void gennbody(double** s, double** v, double* m, int n){
 
 	int i, j;
 	srand(time(NULL));
-	for(i = myrank * size; i < (myrank *size  + size); i++){
+	for(i = 0; i < size; i++){
 		//generate random masses from 0 to 10^30
 		div = RAND_MAX / massMax;
 		m[i] = rand() /div;
@@ -127,8 +128,8 @@ void gennbody(double** s, double** v, double* m, int n){
 				s[i][j] = dist * sin(theta);
 			}
 			if(j == 2){ //z
-				s[i][j] = dist * sin(theta);
-
+				div = RAND_MAX/ zMax;
+				s[i][j] = zMax/2 + (rand() /div );
 			}
 		}
 
