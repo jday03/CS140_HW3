@@ -102,8 +102,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 	else{
 		receiveItem(s,size,3,0);
 		receiveItem(v,size,3,0);
-        MPI_Recv(&m[0],size,MPI_DOUBLE, rank, 0,MPI_COMM_WORLD,&status);
-
+        MPI_Recv(&m[0],size,MPI_DOUBLE, myrank, 0,MPI_COMM_WORLD,&status);
         receiveItem(m,size,1,0);
 	}
 	fclose(fp);
