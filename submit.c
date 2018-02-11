@@ -5,6 +5,8 @@ Team Member 2 : Jonathan Day
 */
 
 #include "nBody.h"
+#include <time.h>
+#define M_PI 3.14159265358979323846
 
 void readnbody(double** s, double** v, double* m, int n) {
 	int myrank;
@@ -29,34 +31,36 @@ void readnbody(double** s, double** v, double* m, int n) {
 			tempS[i][j] = 0;
 		}
 	}
-    double ** TempV;
-	TempV = (double **)malloc(sizeof(double *) * size);
+    double ** tempV;
+	tempV = (double **)malloc(sizeof(double *) * size);
 	for (i = 0; i < size; i++) {
-		TempV[i] = (double*)malloc(sizeof(double) * 3);
+		tempV[i] = (double*)malloc(sizeof(double) * 3);
 		for(j = 0; j < 3; j++) {
-			TempV[i][j] = 0;
+			tempV[i][j] = 0;
 		}
 	}
 
-    double * TempM;
-	TempM = (double *)malloc(sizeof(double) * size);
+    double * tempM;
+	tempM = (double *)malloc(sizeof(double) * size);
 
 	for(i = 0; i < size; i++) {
 		m[i] = 0;
 	}
-	
+
+
+	//save to self and send to rest of processors.
 	if (myrank == 0) {
 		int i;
 		for (i = 0; i < nprocs; i++){
 			double x, y, z, vx, vy, vz, mass;
-    int result = 7;
+    		int result = 7;
 			if (result != 7) {
 				fprintf(stderr, "error reading body %d. Check if the number of bodies is correct.\n", i);
 				exit(0);
 			}
 			if( i == 0 ){
 				int j;
-				for (j = 0; i < size; i++) {
+				for (j = 0; j < size; j++) {
 					int result = fscanf(fp, INPUT_BODY, &x, &y, &z, &vx, &vy, &vz, &mass);
 					if (result != 7) {
 						fprintf(stderr, "error reading body %d. Check if the number of bodies is correct.\n", i);
@@ -74,13 +78,34 @@ void readnbody(double** s, double** v, double* m, int n) {
 			}
 			else{ //MPI_Send to the rest of processors using tempS, tempV, tempM
 
-			}
+				for (j = 0; j < size; j++) {
+					int result = fscanf(fp, INPUT_BODY, &x, &y, &z, &vx, &vy, &vz, &mass);
+					if (result != 7) {
+						fprintf(stderr, "error reading body %d. Check if the number of bodies is correct.\n", i);
+						exit(0);
+					}
 
+					tempS[j][0] = x;
+					tempS[j][1] = y;
+					tempS[j][2] = z;
+					tempV[j][0] = vx;
+					tempV[j][1] = vy;
+					tempV[j][2] = vz;
+					tempM[j] = mass;
+
+				}
+				sendItem(tempS, size, 3, i  );
+				sendItem(tempV, size, 3, i );
+				sendItem(tempM, size, 1, i );
+
+			}
 		}
 	}
 
 	else{
-		//MPI Receive Data
+		receiveItem(s,size,3,0);
+		receiveItem(v,size,3,0);
+		receiveItem(m,size,1,0);
 	}
 	fclose(fp);
 
