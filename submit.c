@@ -54,10 +54,6 @@ void readnbody(double** s, double** v, double* m, int n) {
 		for (i = 0; i < nprocs; i++){
 			double x, y, z, vx, vy, vz, mass;
     		int result = 7;
-			if (result != 7) {
-				fprintf(stderr, "error reading body %d. Check if the number of bodies is correct.\n", i);
-				exit(0);
-			}
 			if( i == 0 ){
 				int j;
 				for (j = 0; j < size; j++) {
@@ -106,7 +102,6 @@ void readnbody(double** s, double** v, double* m, int n) {
 		receiveItem(s,size,3,0);
 		receiveItem(v,size,3,0);
 		receiveItem(m,size,1,0);
-
 	}
 	fclose(fp);
 
