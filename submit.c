@@ -9,6 +9,7 @@ Team Member 2 : Jonathan Day
 #define M_PI 3.14159265358979323846
 
 void readnbody(double** s, double** v, double* m, int n) {
+    MPI_Status status;
 	int myrank;
 	int nprocs;
 	int i;
@@ -92,7 +93,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 				}
 				sendItem(tempS, size, 3, i );
 				sendItem(tempV, size, 3, i );
-				sendItem(tempM, size, 1, i );
+                MPI_SEND(&tempM[0], size, MPI_DOUBLE, 0,MPI_COMM_WORLD );
 
 			}
 		}
@@ -101,7 +102,9 @@ void readnbody(double** s, double** v, double* m, int n) {
 	else{
 		receiveItem(s,size,3,0);
 		receiveItem(v,size,3,0);
-		receiveItem(m,size,1,0);
+        MPI_Recv(&m[0],size,MPI_DOUBLE, rank, 0,MPI_COMM_WORLD,&status);
+
+        receiveItem(m,size,1,0);
 	}
 	fclose(fp);
 
