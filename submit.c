@@ -90,7 +90,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 					tempM[j] = mass;
 
 				}
-				sendItem(tempS, size, 3, i  );
+				sendItem(tempS, size, 3, i );
 				sendItem(tempV, size, 3, i );
 				sendItem(tempM, size, 1, i );
 
@@ -109,7 +109,6 @@ void readnbody(double** s, double** v, double* m, int n) {
 }
 
 void gennbody(double** s, double** v, double* m, int n){
-	//Write This Func:
 	int myrank;
 	int nprocs;
 	int size;
@@ -163,12 +162,14 @@ void gennbody(double** s, double** v, double* m, int n){
 }
 
 void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
-	int myrank;
+	 int myrank;
 	int nprocs;
 	int i,j;
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
+
+	//printf("HAVE REACHED NBODY FUNCTION THERE ARE %u", nprocs);
 
 	int sizeOfS = n / nprocs;
 
@@ -195,12 +196,19 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 		}
 	}
 
+	double * mCurrent;
+	mCurrent = (double *)malloc(sizeof(double) * sizeOfS);
+
+	for(i = 0; i < sizeOfS; i++) {
+		mCurrent[i] = 0;
+	}
+
 
 	int iterCount;
 	for (iterCount = 0; iterCount < iter; ++iterCount) {
 
 
-        bodiesForceCalc(s, s, f, m, sizeOfS, myrank,myrank); // initial calculation within each processor
+        bodiesForceCalc(s, s, f, m, mCurrent, sizeOfS, myrank,myrank); // initial calculation within each processor
 		int procCount;
 
         int receiveSourceOriginal = myrank - 1;
@@ -215,18 +223,18 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 
 
         int sendSource = myrank + 1;
-        if (sendSource > nprocs) {
+        if (sendSource == nprocs) {
             sendSource = 0 + sendSource - nprocs;
         }
 
 
-        rotateItems(currentS, f, myrank, sizeOfS, sendSource, receiveSource);
+        rotateItems(currentS, f,mCurrent, myrank, sizeOfS, sendSource, receiveSource);
 
         for(procCount = 0; procCount < nprocs - 1; ++procCount) {
 
 
 
-            bodiesForceCalc(s, currentS, f, m, sizeOfS, myrank,receiveSourceOriginal);
+            bodiesForceCalc(s, currentS, f, m,mCurrent, sizeOfS, myrank,receiveSourceOriginal);
 
             receiveSourceOriginal = receiveSourceOriginal - 1;
             if (receiveSourceOriginal < 0) {
@@ -234,7 +242,7 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
             }
 
 
-            rotateItems(currentS, f, myrank, sizeOfS, sendSource, receiveSource);
+			rotateItems(currentS, f,mCurrent, myrank, sizeOfS, sendSource, receiveSource);
 
 
         }
@@ -244,9 +252,9 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 
                 if(isfinite(f[tally][0]) && isfinite(f[tally][1] ) && isfinite(f[tally][2])) {
 
-                    v[tally][0] += -f[tally][0] / m[myrank * sizeOfS + tally];
-                    v[tally][1] += -f[tally][1] / m[myrank * sizeOfS + tally];
-                    v[tally][2] += -f[tally][2] / m[myrank * sizeOfS + tally];
+                    v[tally][0] += (-f[tally][0] / m[tally]) * timestep;
+                    v[tally][1] += (-f[tally][1] / m[tally]) * timestep;
+                    v[tally][2] += (-f[tally][2] / m[tally]) * timestep;
 
                     s[tally][0] += v[tally][0] * timestep;
                     s[tally][1] += v[tally][1] * timestep;
@@ -266,6 +274,7 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 			fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
 		}
 	}
+
 }
 
 
@@ -283,13 +292,18 @@ void zeroFValues(double ** f, int sizeOf){
 
 
 
-void rotateItems(double ** s, double ** f,int myrank, int sizeOfS, int sendSource, int receiveSource){
+void rotateItems(double ** s, double ** f,double * mCurrent,int myrank, int sizeOfS, int sendSource, int receiveSource){
     int i,j;
-    if (myrank % 2 == 0) {
-        send(s, sizeOfS, 3, sendSource);
-        send(f, sizeOfS, 3, sendSource);
-        receive(s, sizeOfS, 3, receiveSource);
-        receive(f, sizeOfS, 3, receiveSource);
+	MPI_Status status;
+
+	if (myrank % 2 == 0) {
+        sendItem(s, sizeOfS, 3, sendSource);
+        sendItem(f, sizeOfS, 3, sendSource);
+		MPI_Send(&mCurrent,sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
+
+		receiveItem(s, sizeOfS, 3, receiveSource);
+        receiveItem(f, sizeOfS, 3, receiveSource);
+		MPI_Recv(&mCurrent,sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
     } else {
         //because we are receiving first here we must make buffers
         double **forceBuffer;
@@ -303,7 +317,7 @@ void rotateItems(double ** s, double ** f,int myrank, int sizeOfS, int sendSourc
         }
 
 
-        receive(f, sizeOfS, 3, receiveSource);
+		receiveItem(f, sizeOfS, 3, receiveSource);
 
         double **coordBuffer;
         coordBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
@@ -315,14 +329,23 @@ void rotateItems(double ** s, double ** f,int myrank, int sizeOfS, int sendSourc
 
         }
 
-        receive(s, sizeOfS, 3, receiveSource);
+        receiveItem(s, sizeOfS, 3, receiveSource);
+		double * mBuffer;
+		mBuffer = (double *)malloc(sizeof(double) * sizeOfS);
 
+		for(i = 0; i < sizeOfS; i++) {
+			mBuffer[i] = mCurrent[i];
+		}
 
-        send(coordBuffer, sizeOfS, 3, sendSource);
-        send(forceBuffer, sizeOfS, 3, sendSource);
+		MPI_Recv(&mCurrent,sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
+
+		sendItem(coordBuffer, sizeOfS, 3, sendSource);
+        sendItem(forceBuffer, sizeOfS, 3, sendSource);
+		MPI_Send(&mBuffer,sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
 
         free(coordBuffer);
         free(forceBuffer);
+		free(mBuffer);
     }
 
 
@@ -331,6 +354,8 @@ void rotateItems(double ** s, double ** f,int myrank, int sizeOfS, int sendSourc
 
 
 void sendItem(double ** item, int sizeOfFirstPart,int sizeOfSecondPart, int destination){
+	//printf("HAVE REACHED send item FUNCTION");
+
 	int count;
 	for(count = 0; count < sizeOfFirstPart;++count){
 		MPI_Send(&item[count][0],sizeOfSecondPart,MPI_DOUBLE, destination, 0,MPI_COMM_WORLD );
@@ -348,14 +373,14 @@ void receiveItem(double ** item, int sizeOfFirstPart,int sizeOfSecondPart, int s
 
 }
 
-void bodiesForceCalc(double** s1,double ** s2, double** f, double* m, int sizeInAProc,int procNumber1,int procNumber2){
+void bodiesForceCalc(double** s1,double ** s2, double** f, double* m,double * mCurrent, int sizeInAProc,int procNumber1,int procNumber2){
 	int nCount,otherCount;
 
 	for(nCount = 0; nCount < sizeInAProc; ++nCount) {
 		for (otherCount = 0; otherCount< sizeInAProc; ++otherCount) {
 
-				calculateOnItemTwo(s1[nCount][0], s1[nCount][1], s1[nCount][2], m[procNumber1 * sizeInAProc + nCount], s2[otherCount][0],
-								   s2[otherCount][1], s2[otherCount][2], m[procNumber2 * sizeInAProc + otherCount], f[otherCount]);
+				calculateOnItemTwo(s1[nCount][0], s1[nCount][1], s1[nCount][2], m[nCount], s2[otherCount][0],
+								   s2[otherCount][1], s2[otherCount][2], mCurrent[otherCount], f[otherCount]);
 
 		}
 	}
