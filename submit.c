@@ -1,7 +1,7 @@
 /*
 Assignment 3 
-Team Member 1 :
-Team Member 2 :
+Team Member 1 : Noel Vargas
+Team Member 2 : Jonathan Day
 */
 
 #include "nBody.h"
@@ -20,7 +20,8 @@ void readnbody(double** s, double** v, double* m, int n) {
 	  fprintf(stderr, "error, cannot find input file");
 	}
 
-
+    double **tempS;
+    int j;
 	tempS = (double **)malloc(sizeof(double *) * size);
 	for (i = 0; i < size; i++) {
 		tempS[i] = (double*)malloc(sizeof(double) * 3);
@@ -28,7 +29,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 			tempS[i][j] = 0;
 		}
 	}
-
+    double ** TempV;
 	TempV = (double **)malloc(sizeof(double *) * size);
 	for (i = 0; i < size; i++) {
 		TempV[i] = (double*)malloc(sizeof(double) * 3);
@@ -37,6 +38,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 		}
 	}
 
+    double * TempM;
 	TempM = (double *)malloc(sizeof(double) * size);
 
 	for(i = 0; i < size; i++) {
@@ -47,7 +49,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 		int i;
 		for (i = 0; i < nprocs; i++){
 			double x, y, z, vx, vy, vz, mass;
-
+    int result = 7;
 			if (result != 7) {
 				fprintf(stderr, "error reading body %d. Check if the number of bodies is correct.\n", i);
 				exit(0);
@@ -95,7 +97,7 @@ void gennbody(double** s, double** v, double* m, int n){
 
 	size = n/nprocs;
 	double massMax = 10^30;
-	double distMax = 0.5 *10 ^13;
+	double distMax = 0.5 * (10 ^13);
 	double dist;
 	double thetaMax = 2 * M_PI;
 	double theta;
@@ -142,7 +144,7 @@ void gennbody(double** s, double** v, double* m, int n){
 void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 	int myrank;
 	int nprocs;
-	int i;
+	int i,j;
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -177,100 +179,63 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 	for (iterCount = 0; iterCount < iter; ++iterCount) {
 
 
-		initialBodiesForceCalc(s, f, m, sizeOfS, myrank);
-
-
-
-
+        bodiesForceCalc(s, s, f, m, sizeOfS, myrank,myrank); // initial calculation within each processor
 		int procCount;
-		for(procCount = 0; procCount < nprocs - 1; ++procCount) {
+
+        int receiveSourceOriginal = myrank - 1;
+        if (receiveSourceOriginal < 0) {
+            receiveSourceOriginal = nprocs + receiveSourceOriginal;
+        }
+
+        int receiveSource = myrank - 1;
+        if (receiveSource < 0) {
+            receiveSource = nprocs + receiveSource;
+        }
 
 
-			int receiveSource = myrank - 1;
-			if (receiveSource < 0) {
-				receiveSource = nprocs + receiveSource;
-			}
+        int sendSource = myrank + 1;
+        if (sendSource > nprocs) {
+            sendSource = 0 + sendSource - nprocs;
+        }
 
 
-			int sendSource = myrank + 1;
-			if (sendSource > nprocs) {
-				sendSource = 0 + sendSource - nprocs;
-			}
+        rotateItems(currentS, f, myrank, sizeOfS, sendSource, receiveSource);
 
-
-			if (myrank % 2 == 0) {
-				send(s, sizeOfS, 3, sendSource);
-				send(f, sizeOfS, 3, sendSource);
-				receive(s, sizeOfS, 3, receiveSource);
-				receive(f, sizeOfS, 3, receiveSource);
-			} else {
-				//because we are receiveing first here we must make buffers
-				double **forceBuffer;
-				forceBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
-				for (i = 0; i < sizeOfS; i++) {
-					forceBuffer[i] = (double *) malloc(sizeof(double) * 3);
-					for (j = 0; j < 3; j++) {
-						forceBuffer[i][j] = f[i][j];
-					}
-
-				}
-
-
-				receive(f, sizeOfS, 3, iterCount - 1);
-
-				double **coordBuffer;
-				coordBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
-				for (i = 0; i < sizeOfS; i++) {
-					coordBuffer[i] = (double *) malloc(sizeof(double) * 3);
-					for (j = 0; j < 3; j++) {
-						coordBuffer[i][j] = currentS[i][j];
-					}
-
-				}
-
-				receive(currentS, sizeOfS, 3, receiveSource);
-
-
-				send(coordBuffer, sizeOfS, 3, sendSource);
-				send(forceBuffer, sizeOfS, 3, sendSource);
-
-				free(coordBuffer);
-				free(forceBuffer);
-			}
-
-
-			int receiveSourceOriginal = myrank - procCount;
-			if (receiveSourceOriginal < 0) {
-				receiveSourceOriginal = nprocs + receiveSourceOriginal;
-			}
-
-				bodiesForceCalc(s, currentS, f, m, sizeOfS, myrank,	receiveSourceOriginal); // INCLUDE THAT FUNCTION PARAMETER SHIT WHEN SEND/RECEIVE HAS ITS SHIT TOGETHER
+        for(procCount = 0; procCount < nprocs - 1; ++procCount) {
 
 
 
+            bodiesForceCalc(s, currentS, f, m, sizeOfS, myrank,receiveSourceOriginal);
+
+            receiveSourceOriginal = receiveSourceOriginal - 1;
+            if (receiveSourceOriginal < 0) {
+                receiveSourceOriginal = nprocs + receiveSourceOriginal;
+            }
 
 
-			// SEND FORCES TO WHERE THEY BELONG AS f HERE
+            rotateItems(currentS, f, myrank, sizeOfS, sendSource, receiveSource);
+
+
+        }
 
 			int tally;
 			for (tally = 0; tally < sizeOfS; ++tally) {
-				v[tally][0] += -f[tally][0] / m[myrank * sizeOfS + tally];
-				v[tally][1] += -f[tally][1] / m[myrank * sizeOfS + tally];
-				v[tally][2] += -f[tally][2] / m[myrank * sizeOfS + tally];
 
-				s[tally][0] += v[tally][0] * timestep;
-				s[tally][1] += v[tally][1] * timestep;
-				s[tally][2] += v[tally][2] * timestep;
+                if(isfinite(f[tally][0]) && isfinite(f[tally][1] ) && isfinite(f[tally][2])) {
 
+                    v[tally][0] += -f[tally][0] / m[myrank * sizeOfS + tally];
+                    v[tally][1] += -f[tally][1] / m[myrank * sizeOfS + tally];
+                    v[tally][2] += -f[tally][2] / m[myrank * sizeOfS + tally];
+
+                    s[tally][0] += v[tally][0] * timestep;
+                    s[tally][1] += v[tally][1] * timestep;
+                    s[tally][2] += v[tally][2] * timestep;
+                }
 			}
 
+
+        zeroFValues(f,sizeOfS);
 		}
-	}
-
-
-
-
-
 
 	// This is an example of printing the body parameters to the stderr. Your code should print out the final body parameters
 	// in the exact order as the input file. Since we are writing to the stderr in this case, rather than the stdout, make
@@ -284,11 +249,70 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 
 
 
+void zeroFValues(double ** f, int sizeOf){
+    int iCount;
+    int jCount;
+    for(iCount = 0; iCount < sizeOf; ++iCount){
+        for(jCount=0;jCount < 3;++jCount){
+            f[iCount][jCount] = 0;
+        }
+
+    }
+}
+
+
+
+void rotateItems(double ** s, double ** f,int myrank, int sizeOfS, int sendSource, int receiveSource){
+    int i,j;
+    if (myrank % 2 == 0) {
+        send(s, sizeOfS, 3, sendSource);
+        send(f, sizeOfS, 3, sendSource);
+        receive(s, sizeOfS, 3, receiveSource);
+        receive(f, sizeOfS, 3, receiveSource);
+    } else {
+        //because we are receiving first here we must make buffers
+        double **forceBuffer;
+        forceBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
+        for (i = 0; i < sizeOfS; i++) {
+            forceBuffer[i] = (double *) malloc(sizeof(double) * 3);
+            for (j = 0; j < 3; j++) {
+                forceBuffer[i][j] = f[i][j];
+            }
+
+        }
+
+
+        receive(f, sizeOfS, 3, receiveSource);
+
+        double **coordBuffer;
+        coordBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
+        for (i = 0; i < sizeOfS; i++) {
+            coordBuffer[i] = (double *) malloc(sizeof(double) * 3);
+            for (j = 0; j < 3; j++) {
+                coordBuffer[i][j] = s[i][j];
+            }
+
+        }
+
+        receive(s, sizeOfS, 3, receiveSource);
+
+
+        send(coordBuffer, sizeOfS, 3, sendSource);
+        send(forceBuffer, sizeOfS, 3, sendSource);
+
+        free(coordBuffer);
+        free(forceBuffer);
+    }
+
+
+}
+
+
 
 void sendItem(double ** item, int sizeOfFirstPart,int sizeOfSecondPart, int destination){
 	int count;
 	for(count = 0; count < sizeOfFirstPart;++count){
-		MPI_SEND(item[count][0],sizeOfSecondPart,MPI_DOUBLE, destination, 0,MPI_COMM_WORLD );
+		MPI_Send(&item[count][0],sizeOfSecondPart,MPI_DOUBLE, destination, 0,MPI_COMM_WORLD );
 	}
 
 }
@@ -296,23 +320,22 @@ void sendItem(double ** item, int sizeOfFirstPart,int sizeOfSecondPart, int dest
 
 void receiveItem(double ** item, int sizeOfFirstPart,int sizeOfSecondPart, int source){
 	int count;
-	for(count = 0; count < sizeOfFirstPart;++count){
-		MPI_SEND(item[count][0],sizeOfSecondPart,MPI_DOUBLE, source, 0,MPI_COMM_WORLD );
+    MPI_Status status;
+    for(count = 0; count < sizeOfFirstPart;++count){
+		MPI_Recv(&item[count][0],sizeOfSecondPart,MPI_DOUBLE, source, 0,MPI_COMM_WORLD,&status );
 	}
-
 
 }
 
 void bodiesForceCalc(double** s1,double ** s2, double** f, double* m, int sizeInAProc,int procNumber1,int procNumber2){
 	int nCount,otherCount;
 
-	for(nCount = 0; nCount < n; ++nCount) {
-		for (otherCount = 0; otherCount< n; ++otherCount) {
+	for(nCount = 0; nCount < sizeInAProc; ++nCount) {
+		for (otherCount = 0; otherCount< sizeInAProc; ++otherCount) {
 
-			if(nCount != otherCount) {
 				calculateOnItemTwo(s1[nCount][0], s1[nCount][1], s1[nCount][2], m[procNumber1 * sizeInAProc + nCount], s2[otherCount][0],
 								   s2[otherCount][1], s2[otherCount][2], m[procNumber2 * sizeInAProc + otherCount], f[otherCount]);
-			}
+
 		}
 	}
 }
@@ -322,7 +345,7 @@ void bodiesForceCalc(double** s1,double ** s2, double** f, double* m, int sizeIn
 
 
 
-
+/*
 void initialBodiesForceCalc(double** s, double** f, double* m, int sizeInAProc,int procNumber){
 	int nCount,otherCount;
 
@@ -336,7 +359,7 @@ void initialBodiesForceCalc(double** s, double** f, double* m, int sizeInAProc,i
 		}
 	}
 }
-
+*/
 
 void calculateOnItemTwo(double i1,double j1,double k1,double m1,double i2,double j2,double k2,double m2, double * f2Packet){
 	// finding differences
@@ -346,18 +369,20 @@ void calculateOnItemTwo(double i1,double j1,double k1,double m1,double i2,double
 
 	double radius = sqrt((diffI*diffI) + (diffJ * diffJ) + (diffK*diffK));
 
-	const double G = 6.674 * pow(10,-11); //G VALUE HERE
+    if(radius != 0 && isfinite(radius)) {
+    const double G = 6.674 * pow(10, -11); //G VALUE HERE
 
-	double scalarForce = (G * m1*m2)/ (radius * radius);
+    double scalarForce = (G * m1 * m2) / (radius * radius);
 
-	// computing F* (ijk - ijk)/r
-	diffI = diffI /radius;
-	diffJ = diffJ /radius;
-	diffK = diffK /radius;
+    // computing F* (ijk - ijk)/r
+    diffI = diffI / radius;
+    diffJ = diffJ / radius;
+    diffK = diffK / radius;
 
-	f2Packet[0] += (diffI * scalarForce);
-	f2Packet[1] += (diffJ * scalarForce);
-	f2Packet[2] += (diffK * scalarForce);
+    f2Packet[0] += (diffI * scalarForce);
+    f2Packet[1] += (diffJ * scalarForce);
+    f2Packet[2] += (diffK * scalarForce);
+}
 
 }
 
