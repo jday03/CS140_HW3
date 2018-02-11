@@ -106,6 +106,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 		receiveItem(s,size,3,0);
 		receiveItem(v,size,3,0);
 		receiveItem(m,size,1,0);
+
 	}
 	fclose(fp);
 
