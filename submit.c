@@ -227,7 +227,7 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
             sendSource = 0 + sendSource - nprocs;
         }
 
-
+if(nprocs != 1)
         rotateItems(currentS, f,mCurrent, myrank, sizeOfS, sendSource, receiveSource);
 
         for(procCount = 0; procCount < nprocs - 1; ++procCount) {
@@ -299,37 +299,40 @@ void rotateItems(double ** s, double ** f,double * mCurrent,int myrank, int size
 	if (myrank % 2 == 0) {
         sendItem(s, sizeOfS, 3, sendSource);
         sendItem(f, sizeOfS, 3, sendSource);
-		MPI_Send(&mCurrent,sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
+		MPI_Send(&mCurrent[0],sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
 
 		receiveItem(s, sizeOfS, 3, receiveSource);
         receiveItem(f, sizeOfS, 3, receiveSource);
-		MPI_Recv(&mCurrent,sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
+		MPI_Recv(&mCurrent[0],sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
     } else {
         //because we are receiving first here we must make buffers
-        double **forceBuffer;
-        forceBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
-        for (i = 0; i < sizeOfS; i++) {
-            forceBuffer[i] = (double *) malloc(sizeof(double) * 3);
-            for (j = 0; j < 3; j++) {
-                forceBuffer[i][j] = f[i][j];
-            }
 
-        }
+
+		double **coordBuffer;
+		coordBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
+		for (i = 0; i < sizeOfS; i++) {
+			coordBuffer[i] = (double *) malloc(sizeof(double) * 3);
+			for (j = 0; j < 3; j++) {
+				coordBuffer[i][j] = s[i][j];
+			}
+
+		}
+		receiveItem(s, sizeOfS, 3, receiveSource);
+
+		double **forceBuffer;
+		forceBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
+		for (i = 0; i < sizeOfS; i++) {
+			forceBuffer[i] = (double *) malloc(sizeof(double) * 3);
+			for (j = 0; j < 3; j++) {
+				forceBuffer[i][j] = f[i][j];
+			}
+
+		}
+
 
 
 		receiveItem(f, sizeOfS, 3, receiveSource);
 
-        double **coordBuffer;
-        coordBuffer = (double **) malloc(sizeof(double *) * sizeOfS);
-        for (i = 0; i < sizeOfS; i++) {
-            coordBuffer[i] = (double *) malloc(sizeof(double) * 3);
-            for (j = 0; j < 3; j++) {
-                coordBuffer[i][j] = s[i][j];
-            }
-
-        }
-
-        receiveItem(s, sizeOfS, 3, receiveSource);
 		double * mBuffer;
 		mBuffer = (double *)malloc(sizeof(double) * sizeOfS);
 
@@ -337,11 +340,11 @@ void rotateItems(double ** s, double ** f,double * mCurrent,int myrank, int size
 			mBuffer[i] = mCurrent[i];
 		}
 
-		MPI_Recv(&mCurrent,sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
+		MPI_Recv(&mCurrent[0],sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
 
 		sendItem(coordBuffer, sizeOfS, 3, sendSource);
         sendItem(forceBuffer, sizeOfS, 3, sendSource);
-		MPI_Send(&mBuffer,sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
+		MPI_Send(&mCurrent[0],sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
 
         free(coordBuffer);
         free(forceBuffer);
