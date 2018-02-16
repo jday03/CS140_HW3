@@ -93,7 +93,7 @@ void readnbody(double** s, double** v, double* m, int n) {
 				}
 				sendItem(tempS, size, 3, i );
 				sendItem(tempV, size, 3, i );
-                MPI_SEND(&tempM[0], size, MPI_DOUBLE, 0,MPI_COMM_WORLD );
+                MPI_Send(&tempM[0], size, MPI_DOUBLE, i, 0,MPI_COMM_WORLD );
 
 			}
 		}
@@ -102,11 +102,14 @@ void readnbody(double** s, double** v, double* m, int n) {
 	else{
 		receiveItem(s,size,3,0);
 		receiveItem(v,size,3,0);
-        MPI_Recv(&m[0],size,MPI_DOUBLE, myrank, 0,MPI_COMM_WORLD,&status);
-        receiveItem(m,size,1,0);
-	}
-	fclose(fp);
+        MPI_Recv(&m[0],size,MPI_DOUBLE, 0, 0,MPI_COMM_WORLD,&status);
 
+	}
+
+	fclose(fp);
+	free(tempM);
+	free(tempS);
+	free(tempV);
 
 }
 
@@ -202,7 +205,7 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 	mCurrent = (double *)malloc(sizeof(double) * sizeOfS);
 
 	for(i = 0; i < sizeOfS; i++) {
-		mCurrent[i] = 0;
+		mCurrent[i] = m[i];
 	}
 
 
@@ -210,26 +213,30 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 	for (iterCount = 0; iterCount < iter; ++iterCount) {
 
 
-        bodiesForceCalc(s, s, f, m, mCurrent, sizeOfS, myrank,myrank); // initial calculation within each processor
+        bodiesForceCalc(s, s, f, m, m, sizeOfS, myrank,myrank); // initial calculation within each processor
 		int procCount;
 
-        int receiveSourceOriginal = myrank - 1;
-        if (receiveSourceOriginal < 0) {
-            receiveSourceOriginal = nprocs + receiveSourceOriginal;
-        }
-
-        int receiveSource = myrank - 1;
-        if (receiveSource < 0) {
-            receiveSource = nprocs + receiveSource;
-        }
 
 
-        int sendSource = myrank + 1;
-        if (sendSource == nprocs) {
-            sendSource = 0 + sendSource - nprocs;
-        }
+if(nprocs != 1){
 
-if(nprocs != 1)
+
+    int receiveSourceOriginal = myrank - 1;
+    if (receiveSourceOriginal < 0) {
+        receiveSourceOriginal = nprocs + receiveSourceOriginal;
+    }
+
+    int receiveSource = myrank - 1;
+    if (receiveSource < 0) {
+        receiveSource = nprocs + receiveSource;
+    }
+
+
+    int sendSource = myrank + 1;
+    if (sendSource == nprocs) {
+        sendSource = 0 + sendSource - nprocs;
+    }
+
         rotateItems(currentS, f,mCurrent, myrank, sizeOfS, sendSource, receiveSource);
 
         for(procCount = 0; procCount < nprocs - 1; ++procCount) {
@@ -248,15 +255,15 @@ if(nprocs != 1)
 
 
         }
-
+}
 			int tally;
 			for (tally = 0; tally < sizeOfS; ++tally) {
 
                 if(isfinite(f[tally][0]) && isfinite(f[tally][1] ) && isfinite(f[tally][2])) {
 
-                    v[tally][0] += (-f[tally][0] / m[tally]) * timestep;
-                    v[tally][1] += (-f[tally][1] / m[tally]) * timestep;
-                    v[tally][2] += (-f[tally][2] / m[tally]) * timestep;
+                    v[tally][0] += (-(f[tally][0] )/ m[tally]) * timestep;
+                    v[tally][1] += (-(f[tally][1] )/ m[tally]) * timestep;
+                    v[tally][2] += (-(f[tally][2] )/ m[tally]) * timestep;
 
                     s[tally][0] += v[tally][0] * timestep;
                     s[tally][1] += v[tally][1] * timestep;
@@ -266,7 +273,8 @@ if(nprocs != 1)
 
 
         zeroFValues(f,sizeOfS);
-		}
+
+    }
 
 	// This is an example of printing the body parameters to the stderr. Your code should print out the final body parameters
 	// in the exact order as the input file. Since we are writing to the stderr in this case, rather than the stdout, make
@@ -274,6 +282,7 @@ if(nprocs != 1)
 	if (myrank == 0) {
 		for (i = 0; i < n / nprocs; i++) {
 			fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
+
 		}
 	}
 
@@ -343,7 +352,7 @@ void rotateItems(double ** s, double ** f,double * mCurrent,int myrank, int size
 		}
 
 		MPI_Recv(&mCurrent[0],sizeOfS,MPI_DOUBLE, receiveSource, 0,MPI_COMM_WORLD,&status);
-
+      //  printf("MASS 2 IS %f", mCurrent[0]);
 		sendItem(coordBuffer, sizeOfS, 3, sendSource);
         sendItem(forceBuffer, sizeOfS, 3, sendSource);
 		MPI_Send(&mCurrent[0],sizeOfS,MPI_DOUBLE, sendSource, 0,MPI_COMM_WORLD );
@@ -396,21 +405,6 @@ void bodiesForceCalc(double** s1,double ** s2, double** f, double* m,double * mC
 
 
 
-/*
-void initialBodiesForceCalc(double** s, double** f, double* m, int sizeInAProc,int procNumber){
-	int nCount,otherCount;
-
-	for(nCount = 0; nCount < n; ++nCount) {
-		for (otherCount = 0; otherCount< n; ++otherCount) {
-
-			if(nCount != otherCount) {
-				calculateOnItemTwo(s[nCount][0], s[nCount][1], s[nCount][2], m[procNumber * sizeInAProc + nCount], s[otherCount][0],
-								   s[otherCount][1], s[otherCount][2], m[procNumber * sizeInAProc + otherCount], f[otherCount]);
-			}
-		}
-	}
-}
-*/
 
 void calculateOnItemTwo(double i1,double j1,double k1,double m1,double i2,double j2,double k2,double m2, double * f2Packet){
 	// finding differences
@@ -418,12 +412,12 @@ void calculateOnItemTwo(double i1,double j1,double k1,double m1,double i2,double
 	double diffJ = j1-j2;
 	double diffK = k1-k2;
 
-	double radius = sqrt((diffI*diffI) + (diffJ * diffJ) + (diffK*diffK));
-
+	//printf ("mass1 is %f \n", m1);
+   // printf ("mass2 is %f \n", m2);
+    double radius = sqrt((diffI*diffI) + (diffJ * diffJ) + (diffK*diffK));
     if(radius != 0 && isfinite(radius)) {
-    const double G = 6.674 * pow(10, -11); //G VALUE HERE
-
-    double scalarForce = (G * m1 * m2) / (radius * radius);
+    const double G = 0.6674; //G VALUE HERE
+     double scalarForce = (G * m1 * m2) / (radius * radius);
 
     // computing F* (ijk - ijk)/r
     diffI = diffI / radius;
@@ -433,7 +427,9 @@ void calculateOnItemTwo(double i1,double j1,double k1,double m1,double i2,double
     f2Packet[0] += (diffI * scalarForce);
     f2Packet[1] += (diffJ * scalarForce);
     f2Packet[2] += (diffK * scalarForce);
-}
+
+
+    }
 
 }
 
