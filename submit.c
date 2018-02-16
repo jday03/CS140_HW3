@@ -174,6 +174,8 @@ void nbody(double** s, double** v, double* m, int n, int iter, int timestep) {
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+	double start = MPI_Wtime();
+
 	//printf("HAVE REACHED NBODY FUNCTION THERE ARE %u", nprocs);
 
 	int sizeOfS = n / nprocs;
@@ -279,13 +281,19 @@ if(nprocs != 1){
 	// This is an example of printing the body parameters to the stderr. Your code should print out the final body parameters
 	// in the exact order as the input file. Since we are writing to the stderr in this case, rather than the stdout, make
 	// sure you dont add extra debugging statements in stderr.
+	double time = MPI_Wtime() -start;
+
 	if (myrank == 0) {
-		for (i = 0; i < n / nprocs; i++) {
-			fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
 
-		}
+		//for (i = 0; i < n / nprocs; i++) {
+		//	fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
+
+	//	}
 	}
+	if(myrank == 0){
+		printf("Time for nbody: \n %f \n", time);
 
+	}
 }
 
 
