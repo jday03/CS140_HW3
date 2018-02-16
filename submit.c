@@ -285,10 +285,10 @@ if(nprocs != 1){
 
 	if (myrank == 0) {
 
-		//for (i = 0; i < n / nprocs; i++) {
-		//	fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
+		for (i = 0; i < n / nprocs; i++) {
+			fprintf(stderr, OUTPUT_BODY, s[i][0], s[i][1], s[i][2], v[i][0], v[i][1], v[i][2], m[i]);
 
-	//	}
+		}
 	}
 	if(myrank == 0){
 		printf("Time for nbody: \n %f \n", time);
